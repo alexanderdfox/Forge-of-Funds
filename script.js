@@ -10,7 +10,9 @@ const PLAID_LINK_ENDPOINT = "/api/create_link_token";
 const PLAID_EXCHANGE_ENDPOINT = "/api/exchange_public_token";
 
 const STORAGE_KEY = "forge-of-funds-v1";
+const inMemoryState = { value: null };
 const PARTS = ["blade", "guard", "grip", "pommel", "gem"];
+const PREVIEW_LEVELS = { blade: 1, guard: 1, grip: 1, pommel: 1, gem: 1 };
 const PART_COLORS = {
   blade: "--blade",
   guard: "--guard",
@@ -63,6 +65,7 @@ const DEFAULT_DATA = {
     approval: false,
     safeSharing: false,
   },
+  swordStyle: "classic",
   transactions: [
     { id: "t1", date: "2026-03-02", name: "Brightforge Payroll", amount: 2600, type: "credit", category: "income" },
     { id: "t2", date: "2026-03-03", name: "Moonlight Rent", amount: 1200, type: "debit", category: "housing" },
@@ -90,6 +93,11 @@ const ledgerEl = document.getElementById("ledger");
 const questLogEl = document.getElementById("quest-log");
 const bossGridEl = document.getElementById("boss-grid");
 const bossSummaryEl = document.getElementById("boss-summary");
+const battleFieldEl = document.getElementById("battle-field");
+const heroAvatarEl = document.getElementById("hero-avatar");
+const bossAvatarEl = document.getElementById("boss-avatar");
+const fightToggleBtn = document.getElementById("fight-toggle");
+const fightOnceBtn = document.getElementById("fight-once");
 const searchEl = document.getElementById("search");
 const typeFilterEl = document.getElementById("type-filter");
 const swordCanvas = document.getElementById("sword");
@@ -108,6 +116,9 @@ const guardianMatchEl = document.getElementById("guardian-match");
 const guardianApprovalEl = document.getElementById("guardian-approval");
 const safeSharingEl = document.getElementById("safe-sharing");
 const guardianLogEl = document.getElementById("guardian-log");
+const swordStyleEl = document.getElementById("sword-style");
+const swordPreviewEls = Array.from(document.querySelectorAll(".sword-preview"));
+const swordOptionEls = Array.from(document.querySelectorAll(".sword-option"));
 
 const connectBtn = document.getElementById("connect-bank");
 const syncBtn = document.getElementById("sync-bank");
@@ -116,6 +127,9 @@ const importInput = document.getElementById("import-data");
 let particleColor = getCss("--gem");
 const particles = [];
 let animationHandle = null;
+let fightHandle = null;
+let fightActive = false;
+let fightBurst = 0;
 
 connectBtn.addEventListener("click", async () => {
   if (!window.Plaid) {
@@ -185,6 +199,44 @@ importInput.addEventListener("change", async (event) => {
 
 searchEl.addEventListener("input", render);
 typeFilterEl.addEventListener("change", render);
+
+if (swordStyleEl) {
+  swordStyleEl.addEventListener("change", () => {
+    state.swordStyle = swordStyleEl.value;
+    persist();
+    render();
+  });
+}
+
+swordOptionEls.forEach((button) => {
+  button.addEventListener("click", () => {
+    const style = button.dataset.style;
+    if (!style) return;
+    state.swordStyle = style;
+    if (swordStyleEl) {
+      swordStyleEl.value = style;
+    }
+    persist();
+    render();
+  });
+});
+
+if (fightToggleBtn) {
+  fightToggleBtn.addEventListener("click", () => {
+    fightActive = !fightActive;
+    fightToggleBtn.textContent = fightActive ? "Cease Fire" : "Fight!";
+    if (fightActive) {
+      startFightLoop();
+    }
+  });
+}
+
+if (fightOnceBtn) {
+  fightOnceBtn.addEventListener("click", () => {
+    fightBurst = Math.min(30, fightBurst + 20);
+    startFightLoop();
+  });
+}
 
 if (dailyCheckBtn) {
   dailyCheckBtn.addEventListener("click", () => {
@@ -287,8 +339,25 @@ async function syncTransactions() {
   }
 }
 
+
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    return inMemoryState.value;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    inMemoryState.value = value;
+  }
+}
+
 function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = safeGetItem(STORAGE_KEY);
   if (!saved) return structuredClone(DEFAULT_DATA);
   try {
     const parsed = JSON.parse(saved);
@@ -301,6 +370,7 @@ function loadState() {
       cosmeticsUnlocked: parsed.cosmeticsUnlocked || [],
       lessonsUnlocked: parsed.lessonsUnlocked || [],
       guardian: { ...DEFAULT_DATA.guardian, ...(parsed.guardian || {}) },
+      swordStyle: parsed.swordStyle || DEFAULT_DATA.swordStyle,
       transactions: parsed.transactions?.length ? parsed.transactions : DEFAULT_DATA.transactions,
     };
   } catch (error) {
@@ -309,7 +379,7 @@ function loadState() {
 }
 
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  safeSetItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function todayIso() {
@@ -547,10 +617,89 @@ function renderLedger() {
   });
 }
 
-function drawSword(partLevels) {
-  const ctx = swordCanvas.getContext("2d");
-  const scale = 6;
-  const grid = [
+function getSwordGrid(style) {
+  if (style === "katana") {
+    return [
+      "......g...",
+      ".....gg...",
+      "....bbb...",
+      "....bbb...",
+      "...bbbb...",
+      "...bbbb...",
+      "..bbbbb...",
+      "..bbbbb...",
+      ".bbbbbb...",
+      ".bbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      "bbbbbbb...",
+      ".bbbbbb...",
+      ".bbbbbb...",
+      "..bbbbb...",
+      "..bbbbb...",
+      "...bbbb...",
+      "...bbbb...",
+      "....bbb...",
+      "....bbb...",
+      "....ggg...",
+      ".....g....",
+      ".....p....",
+      ".....p....",
+      ".....p....",
+      ".....p....",
+      ".....p....",
+      "....ppp...",
+    ];
+  }
+  if (style === "claymore") {
+    return [
+      "....ggg....",
+      "....ggg....",
+      "....bbb....",
+      "...bbbbb...",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "..bbbbbbb..",
+      "...bbbbb...",
+      "...bbbbb...",
+      "....bbb....",
+      "....bbb....",
+      "....bbb....",
+      "....bbb....",
+      "....bbb....",
+      "....bbb....",
+      "...ggggg...",
+      "....ggg....",
+      ".....g.....",
+      ".....p.....",
+      ".....p.....",
+      ".....p.....",
+      ".....p.....",
+      ".....p.....",
+      "....ppp....",
+    ];
+  }
+  return [
     ".....g.....",
     ".....g.....",
     ".....b.....",
@@ -590,19 +739,34 @@ function drawSword(partLevels) {
     ".....p.....",
     "....ppp....",
   ];
+}
 
+function drawSword(partLevels) {
+  const style = state.swordStyle || "classic";
+  const grid = getSwordGrid(style);
+  drawSwordOnCanvas(swordCanvas, grid, partLevels, "#120e14");
+}
+
+function drawSwordOnCanvas(canvas, grid, partLevels, background) {
+  if (!canvas || !grid || !grid.length) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const scaleX = Math.floor(canvas.width / grid[0].length);
+  const scaleY = Math.floor(canvas.height / grid.length);
+  const scale = Math.max(1, Math.min(scaleX, scaleY)) || 1;
+  const offsetX = Math.floor((canvas.width - grid[0].length * scale) / 2);
+  const offsetY = Math.floor((canvas.height - grid.length * scale) / 2);
   const colors = {
-    b: colorForLevel(getCss("--blade"), partLevels.blade || 0),
-    g: colorForLevel(getCss("--guard"), partLevels.guard || 0),
-    p: colorForLevel(getCss("--grip"), partLevels.grip || 0),
-    m: colorForLevel(getCss("--pommel"), partLevels.pommel || 0),
-    x: colorForLevel(getCss("--gem"), partLevels.gem || 0),
+    b: colorForLevel(safeColor("--blade", "#9bd7ff"), partLevels.blade || 0),
+    g: colorForLevel(safeColor("--guard", "#f7b733"), partLevels.guard || 0),
+    p: colorForLevel(safeColor("--grip", "#b88b5a"), partLevels.grip || 0),
+    m: colorForLevel(safeColor("--pommel", "#b58be0"), partLevels.pommel || 0),
+    x: colorForLevel(safeColor("--gem", "#ff6b8a"), partLevels.gem || 0),
   };
-
   const pommelStart = grid.length - 6;
-  ctx.clearRect(0, 0, swordCanvas.width, swordCanvas.height);
-  ctx.fillStyle = "#120e14";
-  ctx.fillRect(0, 0, swordCanvas.width, swordCanvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = background || "#120e14";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   grid.forEach((row, y) => {
     row.split("").forEach((cell, x) => {
@@ -611,16 +775,205 @@ function drawSword(partLevels) {
       if (y >= pommelStart && cell === "p") {
         key = "m";
       }
-      const color = colors[key] || getCss("--blade");
+      const color = colors[key] || safeColor("--blade", "#9bd7ff");
+      const px = offsetX + x * scale;
+      const py = offsetY + y * scale;
       ctx.fillStyle = color;
-      ctx.fillRect(x * scale, y * scale, scale, scale);
+      ctx.fillRect(px, py, scale, scale);
       ctx.fillStyle = "rgba(0,0,0,0.3)";
-      ctx.fillRect(x * scale, y * scale, scale, 1);
+      ctx.fillRect(px, py, scale, 1);
     });
   });
 
-  ctx.fillStyle = colorForLevel(getCss("--gem"), partLevels.gem || 0.2);
-  ctx.fillRect(5 * scale, 0, scale, scale);
+  ctx.fillStyle = colorForLevel(safeColor("--gem", "#ff6b8a"), partLevels.gem || 0.2);
+  ctx.fillRect(offsetX + 5 * scale, offsetY, scale, scale);
+}
+
+function renderSwordShowcase() {
+  if (!swordPreviewEls.length && !swordOptionEls.length) return;
+  swordPreviewEls.forEach((canvas) => {
+    ensureCanvasSize(canvas, 90, 140);
+    const style = canvas.dataset.style || "classic";
+    const grid = getSwordGrid(style);
+    drawSwordOnCanvas(canvas, grid, PREVIEW_LEVELS, "#120e14");
+  });
+  swordOptionEls.forEach((button) => {
+    const style = button.dataset.style || "classic";
+    const active = (state.swordStyle || "classic") === style;
+    button.classList.toggle("active", active);
+  });
+}
+
+function drawAvatarSprite(canvas, seedKey, mood, swordStyle) {
+  const ctx = canvas.getContext("2d");
+  const gridSize = 12;
+  const scale = Math.max(1, Math.floor(canvas.width / gridSize));
+  const offsetX = Math.floor((canvas.width - gridSize * scale) / 2);
+  const offsetY = Math.floor((canvas.height - gridSize * scale) / 2);
+  const rng = createRng(hashString(seedKey));
+
+  const skin = `hsl(${20 + Math.floor(rng() * 20)}, 40%, ${55 + Math.floor(rng() * 10)}%)`;
+  const armor = `hsl(${200 + Math.floor(rng() * 120)}, 45%, ${35 + Math.floor(rng() * 15)}%)`;
+  const cloak = `hsl(${300 + Math.floor(rng() * 60)}, 55%, ${28 + Math.floor(rng() * 12)}%)`;
+  const accent = mood === "victory" ? "#7bd389" : mood === "danger" ? "#e76f51" : "#f7b733";
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#120e14";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const pixels = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+
+  for (let y = 2; y < 10; y += 1) {
+    for (let x = 4; x < 8; x += 1) {
+      pixels[y][x] = 1;
+    }
+  }
+  for (let x = 3; x < 9; x += 1) {
+    pixels[1][x] = 2;
+  }
+  pixels[2][3] = 2;
+  pixels[2][8] = 2;
+  pixels[3][2] = 3;
+  pixels[3][9] = 3;
+  pixels[6][3] = 4;
+  pixels[6][8] = 4;
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const cell = pixels[y][x];
+      if (!cell) continue;
+      const px = offsetX + x * scale;
+      const py = offsetY + y * scale;
+      ctx.fillStyle = cell === 1 ? armor : cell === 2 ? skin : cell === 3 ? cloak : accent;
+      ctx.fillRect(px, py, scale, scale);
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(px, py, scale, 1);
+    }
+  }
+
+  const swordCanvas = document.createElement("canvas");
+  swordCanvas.width = 48;
+  swordCanvas.height = 80;
+  drawSwordOnCanvas(swordCanvas, getSwordGrid(swordStyle || "classic"), PREVIEW_LEVELS, "#120e14");
+  ctx.drawImage(swordCanvas, canvas.width - 46, canvas.height / 2 - 40);
+}
+
+function drawBattleFrame(ctx, frame, heroMood, bossMood, heroStyle) {
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const t = frame / 20;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#0f0c12";
+  ctx.fillRect(0, 0, width, height);
+
+  const groundY = height - 28;
+  ctx.fillStyle = "#1a1420";
+  ctx.fillRect(0, groundY, width, 28);
+
+  const heroX = 70 + Math.sin(t) * 6;
+  const bossX = width - 90 + Math.cos(t * 0.8) * 4;
+  const bob = Math.sin(t * 2) * 3;
+
+  drawPixelFighter(ctx, heroX, groundY - 40 + bob, heroMood, heroStyle, true);
+  drawPixelFighter(ctx, bossX, groundY - 40 - bob, bossMood, "claymore", false);
+
+  if (fightActive || fightBurst > 0) {
+    const slashX = heroX + 40 + Math.sin(t * 4) * 8;
+    ctx.strokeStyle = "#f7f27f";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(slashX, groundY - 60);
+    ctx.lineTo(slashX + 40, groundY - 20);
+    ctx.stroke();
+  }
+}
+
+function drawPixelFighter(ctx, x, y, mood, swordStyle, facingRight) {
+  const pixel = 4;
+  const bodyColor = mood === "danger" ? "#e76f51" : mood === "victory" ? "#7bd389" : "#6cc9ff";
+  const armor = "#3a3146";
+  const skin = "#cfa577";
+  const cape = "#b58be0";
+  const eye = mood === "victory" ? "#7bd389" : "#f7f27f";
+
+  const flip = facingRight ? 1 : -1;
+  const baseX = x;
+
+  ctx.fillStyle = cape;
+  ctx.fillRect(baseX - 6 * pixel * flip, y - 6 * pixel, 6 * pixel * flip, 10 * pixel);
+
+  ctx.fillStyle = armor;
+  ctx.fillRect(baseX - 2 * pixel, y - 6 * pixel, 6 * pixel, 8 * pixel);
+
+  ctx.fillStyle = skin;
+  ctx.fillRect(baseX, y - 9 * pixel, 4 * pixel, 3 * pixel);
+
+  ctx.fillStyle = eye;
+  ctx.fillRect(baseX + (facingRight ? 2 : -1) * pixel, y - 8 * pixel, pixel, pixel);
+
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(baseX - pixel, y - 2 * pixel, 4 * pixel, 4 * pixel);
+
+  const swordCanvas = document.createElement("canvas");
+  swordCanvas.width = 40;
+  swordCanvas.height = 70;
+  drawSwordOnCanvas(swordCanvas, getSwordGrid(swordStyle || "classic"), PREVIEW_LEVELS, "#120e14");
+  if (facingRight) {
+    ctx.drawImage(swordCanvas, baseX + 10, y - 60);
+  } else {
+    ctx.save();
+    ctx.translate(baseX - 10, y - 60);
+    ctx.scale(-1, 1);
+    ctx.drawImage(swordCanvas, 0, 0);
+    ctx.restore();
+  }
+}
+
+function startFightLoop() {
+  if (fightHandle) return;
+  let frame = 0;
+  const loop = () => {
+    if (!battleFieldEl) {
+      fightHandle = null;
+      return;
+    }
+    ensureCanvasSize(battleFieldEl, 360, 180);
+  const ctx = battleFieldEl.getContext("2d");
+    const heroMood = fightActive || fightBurst > 0 ? "victory" : "neutral";
+    const bossMood = fightActive || fightBurst > 0 ? "danger" : "neutral";
+    drawBattleFrame(ctx, frame, heroMood, bossMood, state.swordStyle || "classic");
+    renderAvatars(heroMood, bossMood);
+
+    if (fightBurst > 0) {
+      fightBurst -= 1;
+    }
+
+    if (fightActive || fightBurst > 0) {
+      frame += 1;
+      fightHandle = requestAnimationFrame(loop);
+    } else {
+      fightHandle = null;
+    }
+  };
+  fightHandle = requestAnimationFrame(loop);
+}
+
+function renderBattleIdle() {
+  if (!battleFieldEl) return;
+  ensureCanvasSize(battleFieldEl, 360, 180);
+  const ctx = battleFieldEl.getContext("2d");
+  drawBattleFrame(ctx, 0, "neutral", "neutral", state.swordStyle || "classic");
+}
+
+function renderAvatars(heroMood, bossMood) {
+  if (heroAvatarEl) {
+    ensureCanvasSize(heroAvatarEl, 120, 160);
+    drawAvatarSprite(heroAvatarEl, "hero-avatar", heroMood, state.swordStyle || "classic");
+  }
+  if (bossAvatarEl) {
+    ensureCanvasSize(bossAvatarEl, 120, 160);
+    drawAvatarSprite(bossAvatarEl, "boss-avatar", bossMood, "claymore");
+  }
 }
 
 function updateParticles(strongestPart) {
@@ -679,6 +1032,21 @@ function hexToRgb(hex) {
   ];
 }
 
+function safeColor(variable, fallback) {
+  const value = getCss(variable);
+  return value || fallback;
+}
+
+function ensureCanvasSize(canvas, width, height) {
+  if (!canvas) return;
+  const w = Number(width) || canvas.width || 0;
+  const h = Number(height) || canvas.height || 0;
+  if (w && canvas.width !== w) canvas.width = w;
+  if (h && canvas.height !== h) canvas.height = h;
+  if (w) canvas.style.width = `${w}px`;
+  if (h) canvas.style.height = `${h}px`;
+}
+
 function getCss(variable) {
   return getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
 }
@@ -701,6 +1069,78 @@ function renderQuestLog(totals, partTotals, bossOverage) {
   questLogEl.textContent = lines.join("\n");
 }
 
+function hashString(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createRng(seed) {
+  let stateSeed = seed >>> 0;
+  return () => {
+    stateSeed ^= stateSeed << 13;
+    stateSeed ^= stateSeed >>> 17;
+    stateSeed ^= stateSeed << 5;
+    return (stateSeed >>> 0) / 4294967296;
+  };
+}
+
+function drawBossSprite(canvas, key, threat, defeated) {
+  const ctx = canvas.getContext("2d");
+  const gridSize = 12;
+  const scale = Math.max(1, Math.floor(canvas.width / gridSize));
+  const offset = Math.floor((canvas.width - gridSize * scale) / 2);
+  const rng = createRng(hashString(key));
+  const baseHue = Math.floor(rng() * 360);
+  const base = `hsl(${baseHue}, ${defeated ? 20 : 65}%, ${defeated ? 35 : 48}%)`;
+  const accent = `hsl(${(baseHue + 40) % 360}, 80%, ${defeated ? 40 : 55}%)`;
+  const eye = defeated ? "#7bd389" : "#f7f27f";
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#120e14";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const pixels = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+  const half = Math.floor(gridSize / 2);
+  const fillChance = 0.2 + Math.min(1, threat) * 0.5;
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < half; x += 1) {
+      let chance = fillChance;
+      if (y >= 3 && y <= 9 && x >= 1 && x <= 3) {
+        chance += 0.2;
+      }
+      if (rng() < chance) {
+        pixels[y][x] = 1;
+        pixels[y][gridSize - 1 - x] = 1;
+      }
+    }
+  }
+
+  pixels[0][2] = 2;
+  pixels[0][gridSize - 3] = 2;
+  pixels[1][1] = 2;
+  pixels[1][gridSize - 2] = 2;
+  pixels[5][3] = 3;
+  pixels[5][gridSize - 4] = 3;
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const cell = pixels[y][x];
+      if (!cell) continue;
+      const px = offset + x * scale;
+      const py = offset + y * scale;
+      ctx.fillStyle = cell === 3 ? eye : cell === 2 ? accent : base;
+      ctx.fillRect(px, py, scale, scale);
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(px, py, scale, 1);
+    }
+  }
+}
+
 function renderBoss(categoryTotals) {
   bossGridEl.innerHTML = "";
   const sorted = Object.entries(categoryTotals)
@@ -709,13 +1149,22 @@ function renderBoss(categoryTotals) {
 
   let bossOverage = 0;
   sorted.forEach(([category, amount]) => {
+    const bossRowEffects = amount > Number(state.targets[category] || 0) ? "shake" : "";
     const target = Number(state.targets[category] || 0);
     const ratio = target > 0 ? Math.min(1, amount / target) : 0;
     const overage = Math.max(0, amount - target);
     bossOverage += overage;
 
     const row = document.createElement("div");
-    row.className = "boss-row";
+    row.className = `boss-row ${bossRowEffects}`.trim();
+
+    const identity = document.createElement("div");
+    identity.className = "boss-identity";
+
+    const sprite = document.createElement("canvas");
+    sprite.className = "boss-sprite";
+    sprite.width = 64;
+    sprite.height = 64;
 
     const name = document.createElement("span");
     name.textContent = category;
@@ -727,11 +1176,19 @@ function renderBoss(categoryTotals) {
     fill.style.width = `${Math.floor(ratio * 100)}%`;
     bar.appendChild(fill);
 
+    const defeated = amount <= target && target > 0;
+    if (defeated) {
+      row.classList.add("defeated");
+    }
+    const threat = target > 0 ? Math.min(1, amount / target) : 0.6;
+    drawBossSprite(sprite, category, threat, defeated);
+    identity.append(sprite, name);
+
     const stateLabel = document.createElement("span");
     stateLabel.className = "boss-state";
-    stateLabel.textContent = target === 0 ? "Set target" : amount <= target ? "Defeated" : `-${formatMoney(overage)}`;
+    stateLabel.textContent = target === 0 ? "Set target" : defeated ? "Defeated" : `-${formatMoney(overage)}`;
 
-    row.append(name, bar, stateLabel);
+    row.append(identity, bar, stateLabel);
     bossGridEl.appendChild(row);
   });
 
@@ -908,10 +1365,15 @@ function computeUnlocks(metrics, level, savingsRatio, bossOverage) {
 function render() {
   apiStatusEl.textContent = `Bank API: ${state.apiStatus}`;
   guardianModeEl.checked = state.guardian.mode;
+  if (swordStyleEl) {
+    swordStyleEl.value = state.swordStyle || "classic";
+  }
   guardianMatchEl.checked = state.guardian.match;
   guardianApprovalEl.checked = state.guardian.approval;
   safeSharingEl.checked = state.guardian.safeSharing;
 
+  ensureCanvasSize(swordCanvas, 240, 420);
+  ensureCanvasSize(particleCanvas, 240, 420);
   const recent = last30Days(state.transactions);
   const totals = computeTotals(recent);
   const categoryTotals = computeCategoryTotals(recent);
@@ -943,6 +1405,9 @@ function render() {
   }
 
   drawSword(partLevels);
+  renderSwordShowcase();
+  renderAvatars("neutral", "neutral");
+  renderBattleIdle();
   renderMap(categoryTotals);
   renderLedger();
   const bossOverage = renderBoss(categoryTotals);

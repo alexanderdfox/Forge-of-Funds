@@ -86,6 +86,37 @@
         </div>
       </section>
 
+      <section class="card armory">
+        <div class="armory-head">
+          <h2>Armory</h2>
+          <p class="muted">Choose your blade style.</p>
+        </div>
+        <div class="armory-grid">
+          <label>
+            Sword Style
+            <select id="sword-style">
+              <option value="classic">Classic Forgeblade</option>
+              <option value="katana">Neon Katana</option>
+              <option value="claymore">Heavy Claymore</option>
+            </select>
+          </label>
+        </div>
+        <div class="armory-showcase">
+          <button class="sword-option" type="button" data-style="classic">
+            <canvas class="sword-preview" data-style="classic" width="90" height="140"></canvas>
+            <span class="sword-name">Classic Forgeblade</span>
+          </button>
+          <button class="sword-option" type="button" data-style="katana">
+            <canvas class="sword-preview" data-style="katana" width="90" height="140"></canvas>
+            <span class="sword-name">Neon Katana</span>
+          </button>
+          <button class="sword-option" type="button" data-style="claymore">
+            <canvas class="sword-preview" data-style="claymore" width="90" height="140"></canvas>
+            <span class="sword-name">Heavy Claymore</span>
+          </button>
+        </div>
+      </section>
+
       <section class="card mapping">
         <h2>Category-to-Forge Map</h2>
         <p class="muted">Choose which sword part each category fuels.</p>
@@ -134,6 +165,23 @@
         <div class="boss-head">
           <h2>Monthly Boss Fight</h2>
           <p class="muted">Defeat the Overbudget Beast by staying under each target.</p>
+        </div>
+        <div class="battle-arena">
+          <div class="arena-side">
+            <p class="arena-label">Hero</p>
+            <canvas id="hero-avatar" width="120" height="160"></canvas>
+          </div>
+          <div class="arena-center">
+            <canvas id="battle-field" width="360" height="180"></canvas>
+            <div class="arena-actions">
+              <button id="fight-toggle" class="primary" type="button">Fight!</button>
+              <button id="fight-once" class="ghost" type="button">Power Slash</button>
+            </div>
+          </div>
+          <div class="arena-side">
+            <p class="arena-label">Boss</p>
+            <canvas id="boss-avatar" width="120" height="160"></canvas>
+          </div>
         </div>
         <div class="boss-grid" id="boss-grid"></div>
         <div class="boss-summary" id="boss-summary"></div>
