@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forge of Funds</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">RPG Pixel Finance</p>
+        <h1>Forge of Funds</h1>
+        <p class="subhead">
+          Your bank activity becomes a legendary blade. Track the flow, map the
+          categories, and watch your sword level up.
+        </p>
+        <div class="status" id="api-status">Bank API: Demo data active</div>
+      </header>
+
+      <section class="card connect">
+        <div>
+          <h2>Bank Portal</h2>
+          <p class="muted">
+            This demo runs locally with sample transactions. To connect a real
+            bank API, point the app to your backend sync endpoint in
+            <span class="mono">script.js</span>.
+          </p>
+        </div>
+        <div class="connect-actions">
+          <button id="connect-bank" class="primary" type="button">Connect Bank</button>
+          <button id="sync-bank" class="ghost" type="button">Sync Now</button>
+          <label class="file-input ghost">
+            Import CSV/JSON
+            <input id="import-data" type="file" accept=".csv,.json" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card dashboard">
+        <div class="panel">
+          <h2>Forge Summary</h2>
+          <div class="stat-grid">
+            <div class="stat">
+              <p class="label">Gold In (30d)</p>
+              <p class="value" id="inflow">$0</p>
+            </div>
+            <div class="stat">
+              <p class="label">Gold Out (30d)</p>
+              <p class="value" id="outflow">$0</p>
+            </div>
+            <div class="stat">
+              <p class="label">Sword Level</p>
+              <p class="value" id="sword-level">1</p>
+            </div>
+            <div class="stat">
+              <p class="label">Forge XP</p>
+              <p class="value" id="forge-xp">0</p>
+            </div>
+          </div>
+          <div class="progress">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <p class="hint" id="progress-hint">Forge a blade by mapping spending to parts.</p>
+        </div>
+        <div class="panel sword-panel">
+          <h2>Blade Render</h2>
+          <div class="sword-canvas">
+            <canvas id="sword" width="240" height="420"></canvas>
+            <canvas id="particles" width="240" height="420"></canvas>
+          </div>
+          <div class="legend">
+            <div><span class="chip blade"></span> Blade</div>
+            <div><span class="chip guard"></span> Guard</div>
+            <div><span class="chip grip"></span> Grip</div>
+            <div><span class="chip pommel"></span> Pommel</div>
+            <div><span class="chip gem"></span> Gem</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card mapping">
+        <h2>Category-to-Forge Map</h2>
+        <p class="muted">Choose which sword part each category fuels.</p>
+        <div class="map-table" id="map-table"></div>
+      </section>
+
+      <section class="card ledger">
+        <div class="ledger-head">
+          <h2>Ledger of Flows</h2>
+          <div class="filters">
+            <label>
+              Search
+              <input id="search" type="text" placeholder="Merchant or category" />
+            </label>
+            <label>
+              Filter
+              <select id="type-filter">
+                <option value="all">All</option>
+                <option value="debit">Gold out</option>
+                <option value="credit">Gold in</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="table" id="ledger"></div>
+      </section>
+
+      <section class="card quest">
+        <div>
+          <h2>Forge AI Quest Log</h2>
+          <p class="muted">A lightweight “AI” narrative based on your latest flow patterns.</p>
+          <div class="quest-box" id="quest-log"></div>
+        </div>
+        <div class="tips">
+          <h3>RPG Tips</h3>
+          <ul>
+            <li>Keep a balanced blade: avoid over-funding a single part.</li>
+            <li>Large deposits grant bonus XP.</li>
+            <li>Map essential categories to the blade for stronger steel.</li>
+          </ul>
+        </div>
+      </section>
+
+
+      <section class="card boss">
+        <div class="boss-head">
+          <h2>Monthly Boss Fight</h2>
+          <p class="muted">Defeat the Overbudget Beast by staying under each target.</p>
+        </div>
+        <div class="boss-grid" id="boss-grid"></div>
+        <div class="boss-summary" id="boss-summary"></div>
+      </section>
+
+      <section class="card teen">
+        <div class="teen-head">
+          <h2>Teen Forge HQ</h2>
+          <p class="muted">Daily check-ins, streaks, and safe sharing to keep momentum.</p>
+        </div>
+        <div class="teen-grid">
+          <div class="teen-panel">
+            <h3>Daily Check-In</h3>
+            <p class="muted">Log a quick money check to earn XP.</p>
+            <button id="daily-check" class="primary" type="button">Log Check-In</button>
+            <div class="streak">
+              <p class="label">Streak</p>
+              <p class="value" id="daily-streak">0 days</p>
+            </div>
+          </div>
+          <div class="teen-panel">
+            <h3>Weekly Boss Recap</h3>
+            <p class="muted">A short summary of wins + one suggested upgrade.</p>
+            <button id="weekly-recap" class="ghost" type="button">Generate Recap</button>
+            <div class="quest-box" id="weekly-log"></div>
+          </div>
+          <div class="teen-panel">
+            <h3>Monthly Forge Ceremony</h3>
+            <p class="muted">Celebrate progress, unlock a cosmetic, and set a new quest.</p>
+            <button id="monthly-ceremony" class="ghost" type="button">Hold Ceremony</button>
+            <div class="quest-box" id="monthly-log"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card quests">
+        <div class="quests-head">
+          <h2>Questlines</h2>
+          <p class="muted">Goal-driven missions tailored to your spending pattern.</p>
+        </div>
+        <div class="quests-grid" id="questlines"></div>
+      </section>
+
+      <section class="card lessons">
+        <div class="lessons-head">
+          <h2>Learning Sparks</h2>
+          <p class="muted">10-second lessons that unlock with progress.</p>
+        </div>
+        <div class="lessons-grid" id="lessons"></div>
+      </section>
+
+      <section class="card cosmetics">
+        <div class="cosmetics-head">
+          <h2>Cosmetics Vault</h2>
+          <p class="muted">Unlock skins by completing quests and streaks.</p>
+        </div>
+        <div class="cosmetics-grid" id="cosmetics"></div>
+      </section>
+
+      <section class="card guardian">
+        <div class="guardian-head">
+          <h2>Guardian Circle</h2>
+          <p class="muted">Support without surveillance. Toggle guidance options.</p>
+        </div>
+        <div class="guardian-grid">
+          <label class="toggle">
+            <input id="guardian-mode" type="checkbox" />
+            Guardian view enabled
+          </label>
+          <label class="toggle">
+            <input id="guardian-match" type="checkbox" />
+            Savings match active
+          </label>
+          <label class="toggle">
+            <input id="guardian-approval" type="checkbox" />
+            Large purchase approval
+          </label>
+          <label class="toggle">
+            <input id="safe-sharing" type="checkbox" />
+            Safe sharing enabled
+          </label>
+        </div>
+        <div class="guardian-log" id="guardian-log"></div>
+      </section>
+      <footer class="footer">
+        <p>
+          Note: Real bank API connections require a secure backend. The demo
+          here uses local data only.
+        </p>
+      </footer>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
